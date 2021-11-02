@@ -4,5 +4,10 @@
 
 This package provides a few [in-other-words](https://github.com/KingoftheHomeless/in-other-words#readme) effects that collectively provide the full functionality of [haskeline](https://github.com/judah/haskeline#readme). See Haskeline's documentation for additional usage information.
 
+## echo-repl
+A small example `echo-repl` is provided with this package to demonstrate basic
+usage. It will echo whatever text you write, and announce that an interrupt
+occurred when one happens.
+
 ## Contributions
 Bug reports and PRs are welcome.
