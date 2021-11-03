@@ -14,6 +14,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
+-- needed for defining the 'Threads' instances for 'H.InputT'
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | __WARNING: the API of this module is not included in the PvP versioning of
 -- this package.__
@@ -39,9 +41,7 @@ import Control.Effect.Type.Unlift
 import Control.Effect.Type.Unravel
 import Control.Effect.Type.WriterPrim
 import Control.Monad
-import Control.Monad.Reader.Class
 import Control.Monad.Trans.Control
-import Control.Monad.Writer.Class
 import qualified System.Console.Haskeline as H
 import qualified System.Console.Haskeline.History as H
 import Prelude
@@ -132,52 +132,21 @@ newtype ReadlineC m a = ReadlineC {unReadlineC :: H.InputT m a}
       MonadTrans
     )
 
-instance MonadReader r m => MonadReader r (ReadlineC m) where
-  ask = lift ask
-  local f action = ReadlineC $
-    H.withRunInBase $ \runInBase ->
-      local f (runInBase . unReadlineC $ action)
+deriving newtype instance MonadBase b m => MonadBase b (ReadlineC m)
 
-instance MonadWriter w m => MonadWriter w (ReadlineC m) where
-  tell = lift . tell
-  listen action = ReadlineC $
-    H.withRunInBase $ \runInBase ->
-      listen (runInBase . unReadlineC $ action)
-  pass action = ReadlineC $
-    H.withRunInBase $ \runInBase ->
-      pass (runInBase . unReadlineC $ action)
-
-instance MonadBase b m => MonadBase b (ReadlineC m) where
-  liftBase b = ReadlineC $ lift $ liftBase b
-
-instance MonadBaseControl b m => MonadBaseControl b (ReadlineC m) where
-  type StM (ReadlineC m) a = StM m a
-  liftBaseWith f =
-    ReadlineC $
-      H.withRunInBase $ \runInputTInBase ->
-        liftBaseWith $ \runMInBase ->
-          f (runMInBase . runInputTInBase . unReadlineC)
-  restoreM = lift . restoreM
-
-data WithOrHandle a
-  = WithInterrupts
-  | OnInterruptContinueWith a
+deriving newtype instance MonadBaseControl b m => MonadBaseControl b (ReadlineC m)
 
 instance
   ( Carrier m,
     MonadIO m,
     MonadMask m,
-    Threads ReadlineC (Prims m)
+    Threads H.InputT (Prims m)
   ) =>
   Carrier (ReadlineC m)
   where
-  type Derivs (ReadlineC m) = Readline ': ReadlineHistory ': HandleInterrupt ': Derivs m
-  type Prims (ReadlineC m) = Optional WithOrHandle ': Prims m
-  algPrims = powerAlg (thread @ReadlineC (algPrims @m)) $ \case
-    Optionally WithInterrupts a ->
-      ReadlineC $ H.withInterrupt (unReadlineC a)
-    Optionally (OnInterruptContinueWith c) a ->
-      ReadlineC $ H.handleInterrupt (pure c) (unReadlineC a)
+  type Derivs (ReadlineC m) = Readline ': ReadlineHistory ': Derivs m
+  type Prims (ReadlineC m) = Prims m
+  algPrims = coerce (thread @H.InputT (algPrims @m))
 {- ORMOLU_DISABLE -}
   reformulate =
     addDeriv
@@ -194,6 +163,54 @@ instance
           GetHistory -> liftBase $ ReadlineC H.getHistory
           PutHistory h -> liftBase $ ReadlineC $ H.putHistory h
       ) $
+    liftReform $
+    reformulate @m
+{- ORMOLU_ENABLE -}
+
+newtype ReadlineInterruptC m a = ReadlineInterruptC {unReadlineInterruptC :: H.InputT m a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadFix,
+      MonadFail,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadTrans
+    )
+
+deriving newtype instance
+  MonadBase b m =>
+  MonadBase b (ReadlineInterruptC m)
+
+deriving newtype instance
+  MonadBaseControl b m =>
+  MonadBaseControl b (ReadlineInterruptC m)
+
+-- | Type for denoting which kind of 'Optional' we are inside of.
+data WithOrHandle a
+  = WithInterrupts
+  | OnInterruptContinueWith a
+
+instance
+  ( Carrier m,
+    MonadIO m,
+    MonadMask m,
+    Threads H.InputT (Prims m)
+  ) =>
+  Carrier (ReadlineInterruptC m)
+  where
+  type Derivs (ReadlineInterruptC m) = HandleInterrupt ': Derivs (ReadlineC m)
+  type Prims (ReadlineInterruptC m) = Optional WithOrHandle ': Prims (ReadlineC m)
+  algPrims = powerAlg (coerce (algPrims @(ReadlineC m))) $ \case
+    Optionally WithInterrupts a ->
+      ReadlineInterruptC $ H.withInterrupt (unReadlineInterruptC a)
+    Optionally (OnInterruptContinueWith c) a ->
+      ReadlineInterruptC $ H.handleInterrupt (pure c) (unReadlineInterruptC a)
+{- ORMOLU_DISABLE -}
+  reformulate =
     weakenReformUnder1 $
     addDeriv
       ( \case
@@ -202,89 +219,167 @@ instance
             join $ optionally (OnInterruptContinueWith c) (fmap pure a)
       ) $
     addPrim $
-    liftReform (reformulate @m)
+    coerceReform $
+    reformulate @(ReadlineC m)
 {- ORMOLU_ENABLE -}
 
-instance ThreadsEff ReadlineC (Unravel p) where
-  threadEff alg (Unravel p cataM main) = ReadlineC $
-    H.withRunInBase $ \runInBase ->
-      alg $ Unravel p (cataM . lift) (runInBase . unReadlineC $ main)
+-- orphan instances for InputT: MonadBase(Control) and Threads
 
-instance ThreadsEff ReadlineC (Regional s) where
+instance MonadBase b m => MonadBase b (H.InputT m) where
+  liftBase b = lift $ liftBase b
+
+instance MonadBaseControl b m => MonadBaseControl b (H.InputT m) where
+  type StM (H.InputT m) a = StM m a
+  liftBaseWith f =
+    H.withRunInBase $ \runInputTInBase ->
+      liftBaseWith $ \runMInBase ->
+        f (runMInBase . runInputTInBase)
+  restoreM = lift . restoreM
+
+instance ThreadsEff H.InputT (Unravel p) where
+  threadEff alg (Unravel p cataM main) =
+    H.withRunInBase $ \runInBase ->
+      alg $ Unravel p (cataM . lift) (runInBase main)
+
+instance ThreadsEff H.InputT (Regional s) where
   threadEff = threadRegionalViaOptional
 
-instance ThreadsEff ReadlineC Mask where
+instance ThreadsEff H.InputT Mask where
   threadEff = threadMaskViaClass
 
-instance Functor s => ThreadsEff ReadlineC (Optional s) where
+instance Functor s => ThreadsEff H.InputT (Optional s) where
   threadEff = threadOptionalViaBaseControl
 
-instance ThreadsEff ReadlineC (ReaderPrim i) where
-  threadEff = threadReaderPrimViaClass
+instance ThreadsEff H.InputT (ReaderPrim i) where
+  threadEff = threadReaderPrimViaRegional
 
-instance Monoid o => ThreadsEff ReadlineC (WriterPrim o) where
-  threadEff = threadWriterPrimViaClass
+instance Monoid o => ThreadsEff H.InputT (WriterPrim o) where
+  threadEff = threadWriterPrim $ \alg m -> H.withRunInBase $ \runInBase ->
+    alg $ WriterPrimPass $ runInBase m
 
-instance ThreadsEff ReadlineC Bracket where
+instance ThreadsEff H.InputT Bracket where
   threadEff = threadBracketViaClass
 
-instance ThreadsEff ReadlineC (Unlift b) where
-  threadEff alg (Unlift main) = ReadlineC $
+instance ThreadsEff H.InputT (Unlift b) where
+  threadEff alg (Unlift main) =
     H.withRunInBase $ \runInBase ->
-      alg $ Unlift $ \lower -> main (lower . runInBase . unReadlineC)
+      alg $ Unlift $ \lower -> main (lower . runInBase)
 
-instance ThreadsEff ReadlineC Split where
-  threadEff alg (Split c m) = ReadlineC $
+instance ThreadsEff H.InputT Split where
+  threadEff alg (Split c m) =
     H.withRunInBase $ \runInBase ->
-      alg $ Split (c . (fmap . fmap) lift) (runInBase . unReadlineC $ m)
+      alg $ Split (c . (fmap . fmap) lift) (runInBase m)
 
-instance Monoid o => ThreadsEff ReadlineC (ListenPrim o) where
-  threadEff = threadListenPrimViaClass
+instance Monoid o => ThreadsEff H.InputT (ListenPrim o) where
+  threadEff = threadListenPrim $ \alg m -> H.withRunInBase $ \runInBase ->
+    alg $ ListenPrimListen $ runInBase m
 
-instance ThreadsEff ReadlineC (BaseControl b) where
+instance ThreadsEff H.InputT (BaseControl b) where
   threadEff = threadBaseControlViaClass
 
-instance ThreadsEff ReadlineC Fix where
+instance ThreadsEff H.InputT Fix where
   threadEff = threadFixViaClass
 
--- | Threading constraint for 'ReadlineC'.
+-- | Threading constraint for 'H.InputT'.
 --
 -- 'ReadlineThreads' accepts all the primitive effects
 -- (intended to be used as such) offered by in-other-words.
 --
 -- Most notably, 'ReadlineThreads' accepts @'Control.Effect.Unlift.Unlift' b@.
-class Threads ReadlineC p => ReadlineThreads p
+class Threads H.InputT p => ReadlineThreads p
 
-instance Threads ReadlineC p => ReadlineThreads p
+instance Threads H.InputT p => ReadlineThreads p
 
+-- | Main interpreter for 'Readline', 'ReadlineHistory', and 'HandleInterrupt'
+-- effects. 'H.defaultSettings' exists as a default for settings.
+--
+-- Example usage:
+--
+-- > import Control.Effect
+-- > import Control.Effect.Readline
+-- >
+-- > repl :: Effs '[Readline, HandleInterrupt] m => m ()
+-- > repl = handleInterrupt (outputStrLn "Interrupt!" *> repl) $
+-- >   withInterrupt $ do
+-- >     mline <- getInputLine "> "
+-- >     case mline of
+-- >       Nothing -> pure ()
+-- >       Just line -> outputStrLn line *> repl
+-- >
+-- > main :: IO ()
+-- > main = runM $ runReadline defaultSettings repl
 runReadline ::
-  (MonadIO m, MonadMask m) => H.Settings m -> ReadlineC m a -> m a
-runReadline settings = H.runInputT settings . unReadlineC
+  (MonadIO m, MonadMask m, Carrier m) =>
+  H.Settings m ->
+  ReadlineInterruptC m a ->
+  m a
+runReadline settings = H.runInputT settings . unReadlineInterruptC
 
 runReadlineBehavior ::
-  (MonadIO m, MonadMask m) =>
+  (MonadIO m, MonadMask m, Carrier m) =>
   H.Behavior ->
   H.Settings m ->
-  ReadlineC m a ->
+  ReadlineInterruptC m a ->
   m a
 runReadlineBehavior behavior settings =
-  H.runInputTBehavior behavior settings . unReadlineC
+  H.runInputTBehavior behavior settings . unReadlineInterruptC
 
 runReadlineWithPrefs ::
-  (MonadIO m, MonadMask m) =>
+  (MonadIO m, MonadMask m, Carrier m) =>
+  H.Prefs ->
+  H.Settings m ->
+  ReadlineInterruptC m a ->
+  m a
+runReadlineWithPrefs prefs settings =
+  H.runInputTWithPrefs prefs settings . unReadlineInterruptC
+
+runReadlineBehaviorWithPrefs ::
+  (MonadIO m, MonadMask m, Carrier m) =>
+  H.Behavior ->
+  H.Prefs ->
+  H.Settings m ->
+  ReadlineInterruptC m a ->
+  m a
+runReadlineBehaviorWithPrefs behavior prefs settings =
+  H.runInputTBehaviorWithPrefs behavior prefs settings . unReadlineInterruptC
+
+-- | Weaker version of 'runReadline' intended for circumstances where the
+-- primitive effect 'Optional' can't be threaded. This version is incapable of
+-- interpreting 'HandleInterrupt' though.
+--
+-- Other @'@-ed versions of interpreters are similarly just versions that don't
+-- require threading 'Optional'.
+runReadline' ::
+  (MonadIO m, MonadMask m, Carrier m) =>
+  H.Settings m ->
+  ReadlineC m a ->
+  m a
+runReadline' settings = H.runInputT settings . unReadlineC
+
+runReadlineBehavior' ::
+  (MonadIO m, MonadMask m, Carrier m) =>
+  H.Behavior ->
+  H.Settings m ->
+  ReadlineC m a ->
+  m a
+runReadlineBehavior' behavior settings =
+  H.runInputTBehavior behavior settings . unReadlineC
+
+runReadlineWithPrefs' ::
+  (MonadIO m, MonadMask m, Carrier m) =>
   H.Prefs ->
   H.Settings m ->
   ReadlineC m a ->
   m a
-runReadlineWithPrefs prefs settings =
+runReadlineWithPrefs' prefs settings =
   H.runInputTWithPrefs prefs settings . unReadlineC
 
-runReadlineBehaviorWithPrefs ::
-  (MonadIO m, MonadMask m) =>
+runReadlineBehaviorWithPrefs' ::
+  (MonadIO m, MonadMask m, Carrier m) =>
   H.Behavior ->
   H.Prefs ->
   H.Settings m ->
   ReadlineC m a ->
   m a
-runReadlineBehaviorWithPrefs behavior prefs settings =
+runReadlineBehaviorWithPrefs' behavior prefs settings =
   H.runInputTBehaviorWithPrefs behavior prefs settings . unReadlineC
