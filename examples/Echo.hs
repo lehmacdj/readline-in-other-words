@@ -13,7 +13,7 @@ repl = handleInterrupt (outputStrLn "Interrupt!" *> repl) $
     mline <- getInputLine "> "
     case mline of
       Nothing -> pure ()
-      Just line -> outputStrLn line >> repl
+      Just line -> outputStrLn line *> repl
 
 main :: IO ()
 main = runM $ runReadline defaultSettings repl
