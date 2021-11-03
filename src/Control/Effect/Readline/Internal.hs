@@ -314,14 +314,14 @@ instance Threads H.InputT p => ReadlineThreads p
 -- > main :: IO ()
 -- > main = runM $ runReadline defaultSettings repl
 runReadline ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Settings m ->
   ReadlineInterruptC m a ->
   m a
 runReadline settings = H.runInputT settings . unReadlineInterruptC
 
 runReadlineBehavior ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
   H.Settings m ->
   ReadlineInterruptC m a ->
@@ -330,7 +330,7 @@ runReadlineBehavior behavior settings =
   H.runInputTBehavior behavior settings . unReadlineInterruptC
 
 runReadlineWithPrefs ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Prefs ->
   H.Settings m ->
   ReadlineInterruptC m a ->
@@ -339,7 +339,7 @@ runReadlineWithPrefs prefs settings =
   H.runInputTWithPrefs prefs settings . unReadlineInterruptC
 
 runReadlineBehaviorWithPrefs ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
   H.Prefs ->
   H.Settings m ->
@@ -355,14 +355,14 @@ runReadlineBehaviorWithPrefs behavior prefs settings =
 -- Other @'@-ed versions of interpreters are similarly just versions that don't
 -- require threading 'Optional'.
 runReadline' ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Settings m ->
   ReadlineC m a ->
   m a
 runReadline' settings = H.runInputT settings . unReadlineC
 
 runReadlineBehavior' ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
   H.Settings m ->
   ReadlineC m a ->
@@ -371,7 +371,7 @@ runReadlineBehavior' behavior settings =
   H.runInputTBehavior behavior settings . unReadlineC
 
 runReadlineWithPrefs' ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Prefs ->
   H.Settings m ->
   ReadlineC m a ->
@@ -380,7 +380,7 @@ runReadlineWithPrefs' prefs settings =
   H.runInputTWithPrefs prefs settings . unReadlineC
 
 runReadlineBehaviorWithPrefs' ::
-  (MonadIO m, MonadMask m, Carrier m) =>
+  (MonadIO m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
   H.Prefs ->
   H.Settings m ->
