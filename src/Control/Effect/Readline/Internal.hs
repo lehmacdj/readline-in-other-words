@@ -291,9 +291,9 @@ instance ThreadsEff ReadlineC Fix where
 -- (intended to be used as such) offered by in-other-words.
 --
 -- Most notably, 'ReadlineThreads' accepts @'Control.Effect.Unlift.Unlift' b@.
-class Threads H.InputT p => ReadlineThreads p
+class Threads ReadlineC p => ReadlineThreads p
 
-instance Threads H.InputT p => ReadlineThreads p
+instance Threads ReadlineC p => ReadlineThreads p
 
 -- | Main interpreter for 'Readline', 'ReadlineHistory', and 'HandleInterrupt'
 -- effects. 'H.defaultSettings' exists as a default for settings.
