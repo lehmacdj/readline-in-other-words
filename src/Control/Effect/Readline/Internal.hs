@@ -110,12 +110,12 @@ putHistory = send . PutHistory
 modifyHistory :: Eff ReadlineHistory m => (H.History -> H.History) -> m ()
 modifyHistory f = getHistory >>= putHistory . f
 
--- | A pseudo-effect providing the full haskeline functionality in a single
--- effect.
+-- -- | A pseudo-effect providing the full haskeline functionality in a single
+-- -- effect.
 --
--- @'Haskeline'@ should only ever be used inside of 'Eff' and 'Effs'
--- constraints. It is not a real effect! See 'Control.Effect.Bundle'.
-type Haskeline = Bundle [Readline, ReadlineHistory, HandleInterrupt]
+-- -- @'Haskeline'@ should only ever be used inside of 'Eff' and 'Effs'
+-- -- constraints. It is not a real effect! See 'Control.Effect.Bundle'.
+-- type Haskeline = Bundle [Readline, ReadlineHistory, HandleInterrupt]
 
 newtype ReadlineC m a = ReadlineC {unReadlineC :: H.InputT m a}
   deriving newtype
