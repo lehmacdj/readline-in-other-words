@@ -4,10 +4,33 @@
 
 This package provides a few [in-other-words](https://github.com/KingoftheHomeless/in-other-words#readme) effects that collectively provide the full functionality of [haskeline](https://github.com/judah/haskeline#readme). See Haskeline's documentation for additional usage information.
 
-## echo-repl
-A small example `echo-repl` is provided with this package to demonstrate basic
-usage. It will echo whatever text you write, and announce that an interrupt
-occurred when one happens.
+## Example Usage
+This is all it takes to write a miniature repl using this library:
+```
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+
+module Main where
+
+import Control.Effect
+import Control.Effect.Readline
+
+repl :: Effs '[Readline, HandleInterrupt] m => m ()
+repl = handleInterrupt (outputStrLn "Interrupt!" *> repl) $
+  withInterrupt $ do
+    mline <- getInputLine "> "
+    case mline of
+      Nothing -> pure ()
+      Just line -> outputStrLn line *> repl
+
+main :: IO ()
+main = runM $ runReadline defaultSettings repl
+```
+
+This will echo whatever text you write, and catches interrupts announcing that
+they occurred and preventing the program from terminating. This example is also
+available as the `echo-repl` target in `examples/Echo.hs`.
 
 ## Contributions
 Bug reports and PRs are welcome.
