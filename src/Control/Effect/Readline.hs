@@ -10,12 +10,6 @@
 -- by haskeline, however, check out "Control.Effect.Readline.History" which
 -- provides a 'Control.Effect.Readline.History.ReadlineHistory' effect for
 -- doing that.
---
--- This module exposes threading constraints as orphans for 'H.InputT'. In
--- addition to these orphans it also provides an orphan for
--- 'Control.Monad.Trans.Control.MonadBase and
--- 'Control.Monad.Trans.Control.MonadBaseControl' for versions of haskeline
--- that do not provide it themselves (currently all versions).
 module Control.Effect.Readline
   ( -- * Effect and Actions
 

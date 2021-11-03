@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -14,8 +15,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
--- needed for defining the 'Threads' instances for 'H.InputT'
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | __WARNING: the API of this module is not included in the PvP versioning of
 -- this package.__
@@ -132,9 +131,17 @@ newtype ReadlineC m a = ReadlineC {unReadlineC :: H.InputT m a}
       MonadTrans
     )
 
-deriving newtype instance MonadBase b m => MonadBase b (ReadlineC m)
+instance MonadBase b m => MonadBase b (ReadlineC m) where
+  liftBase b = lift $ liftBase b
 
-deriving newtype instance MonadBaseControl b m => MonadBaseControl b (ReadlineC m)
+instance MonadBaseControl b m => MonadBaseControl b (ReadlineC m) where
+  type StM (ReadlineC m) a = StM m a
+  liftBaseWith f =
+    ReadlineC $
+      H.withRunInBase $ \runInputTInBase ->
+        liftBaseWith $ \runMInBase ->
+          f (runMInBase . runInputTInBase . unReadlineC)
+  restoreM = lift . restoreM
 
 instance
   ( Carrier m,
@@ -181,13 +188,17 @@ newtype ReadlineInterruptC m a = ReadlineInterruptC {unReadlineInterruptC :: H.I
       MonadTrans
     )
 
-deriving newtype instance
-  MonadBase b m =>
-  MonadBase b (ReadlineInterruptC m)
+deriving via
+  ReadlineC m
+  instance
+    MonadBase b m =>
+    MonadBase b (ReadlineInterruptC m)
 
-deriving newtype instance
-  MonadBaseControl b m =>
-  MonadBaseControl b (ReadlineInterruptC m)
+deriving via
+  ReadlineC m
+  instance
+    MonadBaseControl b m =>
+    MonadBaseControl b (ReadlineInterruptC m)
 
 -- | Type for denoting which kind of 'Optional' we are inside of.
 data WithOrHandle a
@@ -225,59 +236,53 @@ instance
 
 -- orphan instances for InputT: MonadBase(Control) and Threads
 
-instance MonadBase b m => MonadBase b (H.InputT m) where
-  liftBase b = lift $ liftBase b
-
-instance MonadBaseControl b m => MonadBaseControl b (H.InputT m) where
-  type StM (H.InputT m) a = StM m a
-  liftBaseWith f =
-    H.withRunInBase $ \runInputTInBase ->
-      liftBaseWith $ \runMInBase ->
-        f (runMInBase . runInputTInBase)
-  restoreM = lift . restoreM
-
-instance ThreadsEff H.InputT (Unravel p) where
+instance ThreadsEff ReadlineC (Unravel p) where
   threadEff alg (Unravel p cataM main) =
-    H.withRunInBase $ \runInBase ->
-      alg $ Unravel p (cataM . lift) (runInBase main)
+    ReadlineC $
+      H.withRunInBase $ \runInBase ->
+        alg $ Unravel p (cataM . lift) (runInBase . unReadlineC $ main)
 
-instance ThreadsEff H.InputT (Regional s) where
+instance ThreadsEff ReadlineC (Regional s) where
   threadEff = threadRegionalViaOptional
 
-instance ThreadsEff H.InputT Mask where
+instance ThreadsEff ReadlineC Mask where
   threadEff = threadMaskViaClass
 
-instance Functor s => ThreadsEff H.InputT (Optional s) where
+instance Functor s => ThreadsEff ReadlineC (Optional s) where
   threadEff = threadOptionalViaBaseControl
 
-instance ThreadsEff H.InputT (ReaderPrim i) where
+instance ThreadsEff ReadlineC (ReaderPrim i) where
   threadEff = threadReaderPrimViaRegional
 
-instance Monoid o => ThreadsEff H.InputT (WriterPrim o) where
-  threadEff = threadWriterPrim $ \alg m -> H.withRunInBase $ \runInBase ->
-    alg $ WriterPrimPass $ runInBase m
+instance Monoid o => ThreadsEff ReadlineC (WriterPrim o) where
+  threadEff = threadWriterPrim $ \alg m -> ReadlineC $
+    H.withRunInBase $ \runInBase ->
+      alg $ WriterPrimPass $ runInBase . unReadlineC $ m
 
-instance ThreadsEff H.InputT Bracket where
+instance ThreadsEff ReadlineC Bracket where
   threadEff = threadBracketViaClass
 
-instance ThreadsEff H.InputT (Unlift b) where
+instance ThreadsEff ReadlineC (Unlift b) where
   threadEff alg (Unlift main) =
-    H.withRunInBase $ \runInBase ->
-      alg $ Unlift $ \lower -> main (lower . runInBase)
+    ReadlineC $
+      H.withRunInBase $ \runInBase ->
+        alg $ Unlift $ \lower -> main (lower . runInBase . unReadlineC)
 
-instance ThreadsEff H.InputT Split where
+instance ThreadsEff ReadlineC Split where
   threadEff alg (Split c m) =
+    ReadlineC $
+      H.withRunInBase $ \runInBase ->
+        alg $ Split (c . (fmap . fmap) lift) (runInBase . unReadlineC $ m)
+
+instance Monoid o => ThreadsEff ReadlineC (ListenPrim o) where
+  threadEff = threadListenPrim $ \alg m -> ReadlineC $
     H.withRunInBase $ \runInBase ->
-      alg $ Split (c . (fmap . fmap) lift) (runInBase m)
+      alg $ ListenPrimListen $ runInBase . unReadlineC $ m
 
-instance Monoid o => ThreadsEff H.InputT (ListenPrim o) where
-  threadEff = threadListenPrim $ \alg m -> H.withRunInBase $ \runInBase ->
-    alg $ ListenPrimListen $ runInBase m
-
-instance ThreadsEff H.InputT (BaseControl b) where
+instance ThreadsEff ReadlineC (BaseControl b) where
   threadEff = threadBaseControlViaClass
 
-instance ThreadsEff H.InputT Fix where
+instance ThreadsEff ReadlineC Fix where
   threadEff = threadFixViaClass
 
 -- | Threading constraint for 'H.InputT'.
