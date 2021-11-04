@@ -46,8 +46,6 @@ import qualified System.Console.Haskeline as H
 import qualified System.Console.Haskeline.History as H
 import Prelude
 
--- | For documentation on actions see haskeline's functions with the same name
--- and similar type signatures.
 data Readline :: Effect where
   GetInputLine :: String -> Readline m (Maybe String)
   GetInputLineWithInitial :: String -> (String, String) -> Readline m (Maybe String)
@@ -56,25 +54,72 @@ data Readline :: Effect where
   WaitForAnyKey :: String -> Readline m Bool
   OutputStr :: String -> Readline m ()
 
+-- | Reads one line of input. The final newline (if any) is removed. When using
+-- terminal-style interaction, this function provides a rich line-editing user
+-- interface.
+--
+-- If @'H.autoAddHistory' == 'True'@ and the line input is nonblank (i.e., is not all
+-- spaces), it will be automatically added to the history.
 getInputLine :: Eff Readline m => String -> m (Maybe String)
 getInputLine = send . GetInputLine
 
+-- | Reads one line of input and fills the insertion space with initial text. When using
+-- terminal-style interaction, this function provides a rich line-editing user interface with the
+-- added ability to give the user default values.
+--
+-- This function behaves in the exact same manner as 'H.getInputLine', except that
+-- it pre-populates the input area. The text that resides in the input area is given as a 2-tuple
+-- with two 'String's.   The string on the left of the tuple (obtained by calling 'fst') is
+-- what will appear to the left of the cursor and the string on the right (obtained by
+-- calling 'snd') is what will appear to the right of the cursor.
+--
+-- Some examples of calling of this function are:
+--
+-- > getInputLineWithInitial "prompt> " ("left", "") -- The cursor starts at the end of the line.
+-- > getInputLineWithInitial "prompt> " ("left ", "right") -- The cursor starts before the second word.
 getInputLineWithInitial ::
   Eff Readline m => String -> (String, String) -> m (Maybe String)
 getInputLineWithInitial p = send . GetInputLineWithInitial p
 
+-- | Reads one character of input.  Ignores non-printable characters.
+--
+-- When using terminal-style interaction, the character will be read without waiting
+-- for a newline.
+--
+-- When using file-style interaction, a newline will be read if it is immediately
+-- available after the input character.
 getInputChar :: Eff Readline m => String -> m (Maybe Char)
 getInputChar = send . GetInputChar
 
+-- | Reads one line of input, without displaying the input while it is being typed.
+-- When using terminal-style interaction, the masking character (if given) will replace each typed character.
+--
+-- When using file-style interaction, this function turns off echoing while reading
+-- the line of input.
+--
+-- Note that if Haskeline is built against a version of the @Win32@ library
+-- earlier than 2.5, 'getPassword' will incorrectly echo back input on MinTTY
+-- consoles (such as Cygwin or MSYS).
 getPassword :: Eff Readline m => Maybe Char -> String -> m (Maybe String)
 getPassword m = send . GetPassword m
 
+-- | Waits for one key to be pressed, then returns.  Ignores the value
+-- of the specific key.
+--
+-- Returns 'True' if it successfully accepted one key.  Returns 'False'
+-- if it encountered the end of input; i.e., an @EOF@ in file-style interaction,
+-- or a @Ctrl-D@ in terminal-style interaction.
+--
+-- When using file-style interaction, consumes a single character from the input which may
+-- be non-printable.
 waitForAnyKey :: Eff Readline m => String -> m Bool
 waitForAnyKey = send . WaitForAnyKey
 
+-- | Write a Unicode string to the user's standard output.
 outputStr :: Eff Readline m => String -> m ()
 outputStr = send . OutputStr
 
+-- | Write a Unicode string to the user's standard output, followed by a newline.
 outputStrLn :: Eff Readline m => String -> m ()
 outputStrLn str = outputStr (str <> "\n")
 
@@ -102,12 +147,15 @@ data ReadlineHistory :: Effect where
   GetHistory :: ReadlineHistory m H.History
   PutHistory :: H.History -> ReadlineHistory m ()
 
+-- | Get the 'H.History'.
 getHistory :: Eff ReadlineHistory m => m H.History
 getHistory = send GetHistory
 
+-- | Set the 'H.History'.
 putHistory :: Eff ReadlineHistory m => H.History -> m ()
 putHistory = send . PutHistory
 
+-- | Modify the 'H.History'. The modification is not atomic.
 modifyHistory :: Eff ReadlineHistory m => (H.History -> H.History) -> m ()
 modifyHistory f = getHistory >>= putHistory . f
 
@@ -366,6 +414,7 @@ runReadline ::
 runReadline settings =
   unEfflyIO . H.runInputT (coerce settings) . unReadlineT . unReadlineInterruptC
 
+-- | Like 'runReadline' but additionally allows specifying a 'H.Behavior'.
 runReadlineBehavior ::
   (Eff (Embed IO) m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
@@ -375,6 +424,7 @@ runReadlineBehavior ::
 runReadlineBehavior behavior settings =
   runReadlineInterruptC $ H.runInputTBehavior behavior (coerce settings)
 
+-- | Like 'runReadline' but additionally allows specifying a 'H.Prefs'.
 runReadlineWithPrefs ::
   (Eff (Embed IO) m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Prefs ->
@@ -384,6 +434,8 @@ runReadlineWithPrefs ::
 runReadlineWithPrefs prefs settings =
   runReadlineInterruptC $ H.runInputTWithPrefs prefs (coerce settings)
 
+-- | Like 'runReadline' but additionally allows specifying a 'H.Behavior' and a
+-- 'H.Prefs'.
 runReadlineBehaviorWithPrefs ::
   (Eff (Embed IO) m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
@@ -397,9 +449,6 @@ runReadlineBehaviorWithPrefs behavior prefs settings =
 -- | Weaker version of 'runReadline' intended for circumstances where the
 -- primitive effect 'Optional' can't be threaded. This version is incapable of
 -- interpreting 'HandleInterrupt' though.
---
--- Other @'@-ed versions of interpreters are similarly just versions that don't
--- require threading 'Optional'.
 runReadline' ::
   (Eff (Embed IO) m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Settings m ->
@@ -407,6 +456,9 @@ runReadline' ::
   m a
 runReadline' settings = runReadlineC $ H.runInputT (coerce settings)
 
+-- | Weaker version of 'runReadlineBehavior' intended for circumstances where
+-- the primitive effect 'Optional' can't be threaded. This version is incapable
+-- of interpreting 'HandleInterrupt' though.
 runReadlineBehavior' ::
   (Eff (Embed IO) m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
@@ -416,6 +468,9 @@ runReadlineBehavior' ::
 runReadlineBehavior' behavior settings =
   runReadlineC $ H.runInputTBehavior behavior (coerce settings)
 
+-- | Weaker version of 'runReadlineWithPrefs' intended for circumstances where
+-- the primitive effect 'Optional' can't be threaded. This version is incapable
+-- of interpreting 'HandleInterrupt' though.
 runReadlineWithPrefs' ::
   (Eff (Embed IO) m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Prefs ->
@@ -425,6 +480,9 @@ runReadlineWithPrefs' ::
 runReadlineWithPrefs' prefs settings =
   runReadlineC $ H.runInputTWithPrefs prefs (coerce settings)
 
+-- | Weaker version of 'runReadlineBehaviorWithPrefs' intended for
+-- circumstances where the primitive effect 'Optional' can't be threaded. This
+-- version is incapable of interpreting 'HandleInterrupt' though.
 runReadlineBehaviorWithPrefs' ::
   (Eff (Embed IO) m, MonadMask m, Carrier m, Threaders '[ReadlineThreads] m p) =>
   H.Behavior ->
