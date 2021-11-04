@@ -29,7 +29,6 @@ module Control.Effect.Readline
 
     -- ** HandleInterrupt
     HandleInterrupt (..),
-    H.Interrupt (..),
     withInterrupt,
     handleInterrupt,
     catchInterrupt,
