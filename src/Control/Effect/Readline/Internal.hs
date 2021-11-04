@@ -127,8 +127,25 @@ data HandleInterrupt :: Effect where
   WithInterrupt :: m a -> HandleInterrupt m a
   HandleInterrupt :: m a -> m a -> HandleInterrupt m a
 
--- | Enable interrupt handling within a given action. Within the passed action
--- 'H.Interrupt' will be thrown
+-- | If Ctrl-C is pressed during the given action, enables interrupt handling
+-- within the nested scope. For example:
+--
+-- > tryAction :: Eff '[Readline, HandleInterrupt] m => m ()
+-- > tryAction = handleInterrupt (outputStrLn "Cancelled.")
+-- >                $ withInterrupt $ someLongAction
+--
+-- The action can handle the interrupt itself every time Ctrl-C is pressed.
+--
+-- > {-# LANGUAGE -XBlockArguments #-}
+-- > tryAction :: Eff '[Readline, HandleInterrupt] m => m ()
+-- > tryAction = withInterrupt loop where
+-- >   loop = someLongAction `catchInterrupt` do
+-- >     outputStrLn "Cancelled; trying again."
+-- >     loop
+--
+-- This behavior differs from GHC's built-in Ctrl-C handling, which
+-- may immediately terminate the program after the second time that the user presses
+-- Ctrl-C.
 withInterrupt :: Eff HandleInterrupt m => m a -> m a
 withInterrupt = send . WithInterrupt
 
