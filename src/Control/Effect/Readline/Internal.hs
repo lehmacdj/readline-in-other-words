@@ -210,7 +210,7 @@ instance ThreadsEff ReadlineT (BaseControl b) where
 instance ThreadsEff ReadlineT Fix where
   threadEff = threadFixViaClass
 
--- | Threading constraint for 'H.InputT'.
+-- | Threading constraint for handlers using 'H.InputT'/'ReadlineT' internally.
 --
 -- 'ReadlineThreads' accepts all the primitive effects
 -- (intended to be used as such) offered by in-other-words.

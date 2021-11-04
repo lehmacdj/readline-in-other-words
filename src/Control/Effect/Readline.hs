@@ -7,11 +7,13 @@
 --
 -- * 'HandleInterrupt' which offers the ability to handle Ctrl-C interrupts
 --
--- These effects should cover all of functionality needed except in exceptional
--- circumstances. If needed to tamper with the history functionality provided
--- by haskeline, however, check out "Control.Effect.Readline.History" which
--- provides a 'Control.Effect.Readline.History.ReadlineHistory' effect for
--- doing that.
+-- In addition to providing effects/handlers this also re-exports haskeline's
+-- types/functions where relevant, so you shouldn't need to import any
+-- haskeline modules.
+--
+-- If you need to tamper with the history functionality provided by haskeline,
+-- check out "Control.Effect.Readline.History" which provides a
+-- 'Control.Effect.Readline.History.ReadlineHistory' effect for doing that.
 module Control.Effect.Readline
   ( -- * Effect and Actions
 
