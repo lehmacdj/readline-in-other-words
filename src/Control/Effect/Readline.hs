@@ -58,6 +58,9 @@ module Control.Effect.Readline
     -- ** Behavior
     H.Behavior,
     H.defaultBehavior,
+    H.useFileHandle,
+    H.useFile,
+    H.preferTerm,
 
     -- ** Preferences
     H.Prefs,
