@@ -2,7 +2,9 @@
 -- command line usage.
 --
 -- This module provides the following effects:
+--
 -- * 'Readline' which offers basic I/O operations on the command line
+--
 -- * 'HandleInterrupt' which offers the ability to handle Ctrl-C interrupts
 --
 -- These effects should cover all of functionality needed except in exceptional
