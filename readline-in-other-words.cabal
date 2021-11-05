@@ -1,7 +1,6 @@
 cabal-version:  2.4
 name:           readline-in-other-words
 synopsis:       Readline effect for in-other-words.
-version:        0.1.0.0
 category:       User Interfaces, Effect
 homepage:       https://github.com/lehmacdj/readline-in-other-words#readme
 bug-reports:    https://github.com/lehmacdj/readline-in-other-words/issues
@@ -18,6 +17,21 @@ description:
   This library provides effects for in-other-words offering the functionality of
   haskeline. Please see the README on GitHub at
   <https://github.com/lehmacdj/readline-in-other-words#readme> for more details.
+
+-- version change checklist:
+-- 1. changelog
+-- 2. make tag; update @source-repository this@ clause
+-- 3. right here
+version: 0.1.0.0
+
+source-repository head
+  type: git
+  location: git://github.com/lehmacdj/readline-in-other-words.git
+
+source-repository this
+  type: git
+  location: git://github.com/lehmacdj/readline-in-other-words.git
+  tag: 0.1.0.0
 
 common options
   ghc-options: -Wall -fplugin=Control.Effect.Plugin
