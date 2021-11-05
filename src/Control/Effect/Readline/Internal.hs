@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -126,6 +127,7 @@ outputStrLn str = outputStr (str <> "\n")
 data HandleInterrupt :: Effect where
   WithInterrupt :: m a -> HandleInterrupt m a
   HandleInterrupt :: m a -> m a -> HandleInterrupt m a
+  deriving (Functor)
 
 -- | If Ctrl-C is pressed during the given action, enables interrupt handling
 -- within the nested scope. For example:

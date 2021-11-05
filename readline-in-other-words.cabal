@@ -1,7 +1,7 @@
 cabal-version:  2.4
 name:           readline-in-other-words
 synopsis:       Readline effect for in-other-words.
-category:       User Interfaces, Effect
+category:       User Interfaces, Effect, in-other-words, Command Line
 homepage:       https://github.com/lehmacdj/readline-in-other-words#readme
 bug-reports:    https://github.com/lehmacdj/readline-in-other-words/issues
 author:         Devin Lehmacher
@@ -22,7 +22,7 @@ description:
 -- 1. changelog
 -- 2. make tag; update @source-repository this@ clause
 -- 3. right here
-version: 0.1.0.0
+version: 0.1.0.1
 
 source-repository head
   type: git
@@ -31,7 +31,7 @@ source-repository head
 source-repository this
   type: git
   location: git://github.com/lehmacdj/readline-in-other-words.git
-  tag: 0.1.0.0
+  tag: 0.1.0.1
 
 common options
   ghc-options: -Wall -fplugin=Control.Effect.Plugin
