@@ -293,13 +293,14 @@ instance Threads ReadlineT p => ReadlineThreads p
 -- -- constraints. It is not a real effect! See 'Control.Effect.Bundle'.
 -- type Haskeline = Bundle [Readline, ReadlineHistory, HandleInterrupt]
 
-newtype ReadlineC m a = ReadlineC {unReadlineC :: ReadlineT (EfflyIO m) a}
+newtype ReadlineC m a = ReadlineC {unReadlineC :: ReadlineT m a}
   deriving newtype
     ( Functor,
       Applicative,
       Monad,
       MonadFix,
       MonadFail,
+      MonadIO,
       MonadThrow,
       MonadCatch,
       MonadMask,
@@ -307,8 +308,6 @@ newtype ReadlineC m a = ReadlineC {unReadlineC :: ReadlineT (EfflyIO m) a}
       MonadBaseControl b
     )
   deriving (MonadTrans) via ReadlineT
-
-deriving newtype instance Eff (Embed IO) m => MonadIO (ReadlineC m)
 
 readlineC :: H.InputT (EfflyIO m) a -> ReadlineC m a
 readlineC = coerce
@@ -348,13 +347,14 @@ instance
     reformulate @m
 {- ORMOLU_ENABLE -}
 
-newtype ReadlineInterruptC m a = ReadlineInterruptC {unReadlineInterruptC :: ReadlineT (EfflyIO m) a}
+newtype ReadlineInterruptC m a = ReadlineInterruptC {unReadlineInterruptC :: ReadlineT m a}
   deriving newtype
     ( Functor,
       Applicative,
       Monad,
       MonadFix,
       MonadFail,
+      MonadIO,
       MonadThrow,
       MonadCatch,
       MonadMask,
@@ -363,14 +363,16 @@ newtype ReadlineInterruptC m a = ReadlineInterruptC {unReadlineInterruptC :: Rea
     )
   deriving (MonadTrans) via ReadlineT
 
-deriving newtype instance Eff (Embed IO) m => MonadIO (ReadlineInterruptC m)
-
 readlineInterruptC :: H.InputT (EfflyIO m) a -> ReadlineInterruptC m a
 readlineInterruptC = coerce
 
 runReadlineInterruptC ::
   (H.InputT (EfflyIO m) a -> EfflyIO m a) -> ReadlineInterruptC m a -> m a
 runReadlineInterruptC = coerce
+
+unReadlineInterruptC' ::
+  ReadlineInterruptC m a -> H.InputT (EfflyIO m) a
+unReadlineInterruptC' = coerce
 
 -- | Type for denoting which kind of 'Optional' we are inside of.
 data WithOrHandleInterrupt a
@@ -390,9 +392,9 @@ instance
   type Prims (ReadlineInterruptC m) = Optional WithOrHandleInterrupt ': Prims (ReadlineC m)
   algPrims = powerAlg (coerce (algPrims @(ReadlineC m))) $ \case
     Optionally WithInterrupts a ->
-      readlineInterruptC $ H.withInterrupt (unReadlineT $ unReadlineInterruptC a)
+      readlineInterruptC $ H.withInterrupt (unReadlineInterruptC' a)
     Optionally (OnInterruptContinueWith c) a ->
-      readlineInterruptC $ H.handleInterrupt (pure c) (unReadlineT $ unReadlineInterruptC a)
+      readlineInterruptC $ H.handleInterrupt (pure c) (unReadlineInterruptC' a)
 {- ORMOLU_DISABLE -}
   reformulate =
     weakenReformUnder1 $
@@ -431,7 +433,7 @@ runReadline ::
   ReadlineInterruptC m a ->
   m a
 runReadline settings =
-  unEfflyIO . H.runInputT (coerce settings) . unReadlineT . unReadlineInterruptC
+  runReadlineInterruptC $ H.runInputT (coerce settings)
 
 -- | Like 'runReadline' but additionally allows specifying a 'H.Behavior'.
 runReadlineBehavior ::

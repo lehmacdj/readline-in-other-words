@@ -1,5 +1,10 @@
 # Revision history for readline-in-other-words
 
+## Unreleased
+
+* Make internal representation slightly simpler by not embedding EfflyIO in the
+  carrier monads.
+
 ## 0.1.0.2 -- 2021-11-04
 
 * Move `Functor` instance to correct type.
